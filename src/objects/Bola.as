@@ -1,5 +1,6 @@
 package objects {
 	import flash.display.Bitmap;
+	import flash.display.DisplayObject;
 	import flash.display.Sprite;
 	
 	public class Bola extends Sprite {
@@ -20,16 +21,20 @@ package objects {
 		public static const WR_HIJAU:String = 'wr_hijau';
 		public static const WR_BIRU:String = 'wr_biru';
 		
-		public static const width:int = 24;
-		public static const height:int = 24;
+		public static const WIDTH:int = 40;
+		public static const HEIGHT:int = 40;
 		
 		private var _color:String = WR_BIRU;
 		private var bmp:Bitmap;
 		private var activeBmp:Bitmap;
 		private var _linked:Boolean = false;
-		private var _isFalling:Boolean = false;
+		private var _fallIsActive:Boolean = false;
 		private var _fallDist:int = 0;
+		private var _fallDistCr:int = 0;
+		private var _fallOldY:int = 0;
+		private var _fallSpeed:int = 1;
 		private var _jadi:Boolean = false;
+		private var _active:Boolean = false;
 		
 		public function Bola(bColor:String=WR_MERAH) {
 			init(bColor);
@@ -39,23 +44,49 @@ package objects {
 			var i:Number;
 			var j:Number;
 			
-			i = x / 24;
-			j = y / 24;
+			i = Math.floor(x / WIDTH);
+			j = Math.floor(y / HEIGHT);
 			
 			boards[i][j] = this;
 		}
 		
-		public function removeFromList(lists:Array):void {
-			var i:int;
-			var len:int;
+		public function reset():void {
+			fallStatusReset();
+		}
+		
+		public function fallStatusReset():void {
+			_fallIsActive = false;
+			_fallDistCr = 0;
+			_fallDist = 0;
+			_fallOldY = y;
+		}
+		
+		public function update():void {
 			
-			len = lists.length;
-			for (i = 0; i < len; i++) {
-				if (lists[i] == this) {
-					lists.splice(i, 1);
+			if (_fallIsActive) {
+				_fallDistCr += _fallSpeed;
+				if (_fallDistCr >= _fallDist) {
+					_fallDistCr = _fallDist;
+					_fallIsActive = false;
+					y = _fallOldY + _fallDistCr;
+					fallStatusReset();
+					return;
 				}
+				y = _fallOldY + _fallDistCr;
 			}
 		}
+		
+		//public function removeFromList(lists:Array):void {
+			//var i:int;
+			//var len:int;
+			//
+			//len = lists.length;
+			//for (i = 0; i < len; i++) {
+				//if (lists[i] == this) {
+					//lists.splice(i, 1);
+				//}
+			//}
+		//}
 		
 		private function init(bColor:String):void {
 			if (bColor == WR_MERAH) {
@@ -94,12 +125,12 @@ package objects {
 			}
 		}
 		
-		public function get isFalling():Boolean {
-			return _isFalling;
+		public function get fallIsActive():Boolean {
+			return _fallIsActive;
 		}
 		
-		public function set isFalling(value:Boolean):void {
-			_isFalling = value;
+		public function set fallIsActive(value:Boolean):void {
+			_fallIsActive = value;
 		}
 		
 		public function get fallDist():int {
@@ -116,6 +147,18 @@ package objects {
 		
 		public function set jadi(value:Boolean):void {
 			_jadi = value;
+		}
+		
+		public function get active():Boolean {
+			return _active;
+		}
+		
+		public function set active(value:Boolean):void {
+			_active = value;
+			
+			if (_active == false) {
+				if (parent) parent.removeChild(this);
+			}
 		}
 	}
 

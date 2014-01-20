@@ -2,23 +2,54 @@ package screen {
 	import flash.display.Bitmap;
 	import flash.display.BitmapData;
 	import flash.display.Sprite;
+	import flash.events.Event;
 	import flash.events.MouseEvent;
 	import objects.Bola;
 	
 	public final class Game extends Sprite {	
-		private const boardHeight:int = 20;
-		private const boardWidth:int = 10;
+	
+		private const BOARD_HEIGHT:int = 20;
+		private const BOARD_WIDTH:int = 6;
 		
-		private var boards:Array = new Array(boardWidth);
+		private const BOLA_OFFSET:int = 160;
+		private const BOLA_IDX_MIN_TO_VISIBLE:int = 14;
+		
+		private var boards:Array = new Array(BOARD_WIDTH);
 		private var bolas:Array = [];
 		private var bolaLinkeds:Array = [];
 		private var bolaCurrent:Bola;
 		private var overlay:Bitmap;
 		
+		private var stCanDrag:Boolean = true;
+		private var stWaitForBolaTurun:Boolean = false;
 		private var mouseIsDown:Boolean = false;
 		
 		public function Game() {
 			init();
+		}
+		
+		private function boardReset():void {
+			var i:int;
+			var j:int;
+			
+			for (i = 0; i < BOARD_WIDTH; i++) {
+				for (j = 0; j < BOARD_HEIGHT; j++) {
+					boards[i][j] = null;
+				}
+			}
+			
+		}
+		
+		private function bolaReg():void {
+			var i:int;
+			var bola:Bola;
+			
+			for (i = 0; i < bolas.length; i++) {
+				bola = bolas[i];
+				if (bola.active) {
+					bola.registerToBoard(boards);
+				}
+			}
 		}
 		
 		private function init():void {
@@ -28,6 +59,29 @@ package screen {
 			overlay = new Bitmap(new BitmapData(240, 340, true, 66000000));
 			overlay.visible = false;
 			addChild(overlay);
+		}
+		
+		private function bolaIsiKosong():void {
+			var i:int;
+			var j:int;
+			var bola:Bola;
+			
+			trace('buat bola baru di tempat kosong');
+			for (i = 0; i < BOARD_WIDTH; i++) {
+				for (j = 0; j < BOARD_HEIGHT; j++) {
+					bola = boards[i][j];
+					if (bola == null) {
+						trace('bola kosong pada pos: ' + i + '/' + j);
+						bola = bolaCreate();
+						bola.x = i * Bola.WIDTH;
+						bola.y = j * Bola.HEIGHT - BOLA_OFFSET;
+						boards[i][j] = bola;
+						addChild(bola);
+					}
+				}
+			}
+			
+			updateBolaVisibility();
 		}
 		
 		private function mouseUp(e:MouseEvent):void {
@@ -40,36 +94,36 @@ package screen {
 			
 			trace('mouse Up, linkeds length: ' + bolaLinkeds.length);
 			
-			if (bolaLinkeds.length > 0) {
-				//jadi
-				for (i = 0; i < boardWidth; i++) {
-					for (j = 0; j < boardHeight; j++) {
+			if (bolaLinkeds.length > 2) {
+				for (i = 0; i < BOARD_WIDTH; i++) {
+					for (j = 0; j < BOARD_HEIGHT; j++) {
 						bola = boards[i][j];
 						if (bola.linked) {
 							trace('bola jadi: ' + i + '/' + j);
 							bola.jadi = true;
+							boards[i][j] == null;
+							stCanDrag = false;
 						}
 					}
 				}
 			}
 			
 			//hapus bola jadi
-			for (i = 0; i < boardWidth; i++) {
-				for (j = 0; j < boardHeight; j++) {
-					bola = boards[i][j];
-					if (bola.jadi) {
-						removeChild(bola);
-						boards[i][j] = null;
-						trace('hapus bola, pos: ' + i + '/' + j);
-					}
-				}
-			}
+			//for (i = 0; i < BOARD_WIDTH; i++) {
+				//for (j = 0; j < BOARD_HEIGHT; j++) {
+					//bola = boards[i][j];
+					//if (bola.jadi) {
+						//removeChild(bola);
+						//bola.active = false;
+						//boards[i][j] = null;
+						//trace('hapus bola, pos: ' + i + '/' + j);
+					//}
+				//}
+			//}
 			
-			//turunin
-			//cara cepat
 			trace('turunin bola kosong');
-			for (i = 0; i < boardWidth; i++) {
-				for (j = 0; j < boardHeight; j++) {
+			for (i = 0; i < BOARD_WIDTH; i++) {
+				for (j = 0; j < BOARD_HEIGHT; j++) {
 					bola = boards[i][j];
 					if (bola == null) {
 						for (k = j; k > 0; k--) {
@@ -77,7 +131,9 @@ package screen {
 								boards[i][k] = boards[i][k - 1];
 								bola = boards[i][k];
 								if (bola) {
-									bola.y = k * Bola.height - 160;
+									bola.fallDist += BOLA_HEIGHT;
+									bola.fallIsActive = true;
+									stWaitForBolaTurun = true;
 								}
 							} else {
 								boards[i][k] = null;
@@ -87,22 +143,6 @@ package screen {
 				}
 			}
 			
-			trace('buat bola baru di tempat kosong');
-			for (i = 0; i < boardWidth; i++) {
-				for (j = 0; j < boardHeight; j++) {
-					bola = boards[i][j];
-					if (bola == null) {
-						trace('bola kosong pada pos: ' + i + '/' + j);
-						bola = bolaCreate();
-						bola.x = i * Bola.width;
-						bola.y = j * Bola.height - 160;
-						boards[i][j] = bola;
-						addChild(bola);
-					}
-				}
-			}
-			
-			updateBolaVisibility();
 			bolaCurrent = null;
 			bolaLinkeds = [];
 		}
@@ -111,11 +151,29 @@ package screen {
 			var i:int;
 			var j:int;
 			
-			for (i = 0; i < boardWidth; i++) {
-				for (j = 0; j < boardHeight; j++) {
+			for (i = 0; i < BOARD_WIDTH; i++) {
+				for (j = 0; j < BOARD_HEIGHT; j++) {
 					boards[i][j] = null;
 				}
 			}
+		}
+		
+		private function getBola(clr:String):Bola {
+			var i:int;
+			var bola:Bola;
+			
+			for (i = 0; i < bolas.length; i++) {
+				bola = bolas[i];
+				if (bola.active == false) {
+					if (bola.color == clr) {
+						bola.active = true;
+						return bola;
+					}
+				}
+			}
+			
+			bola = new Bola(clr);
+			return bola;
 		}
 		
 		private function bolaCreate():Bola {
@@ -125,15 +183,15 @@ package screen {
 			warna = Math.floor(Math.random() * 3);
 			
 			if (warna == 0) {
-				bola = new Bola(Bola.WR_MERAH);
+				bola = getBola(Bola.WR_MERAH);
 			}
 			
 			if (warna == 1) {
-				bola = new Bola(Bola.WR_BIRU);
+				bola = getBola(Bola.WR_BIRU);
 			}
 			
 			if (warna == 2) {
-				bola = new Bola(Bola.WR_HIJAU);
+				bola = getBola(Bola.WR_HIJAU);
 			}
 			
 			var tempBola:Bola = bola;
@@ -192,7 +250,7 @@ package screen {
 				dx = Math.abs(bola.x - bolaLk.x);
 				dy = Math.abs(bola.y - bolaLk.y);
 				
-				if ((dx <= Bola.width) && (dy <= bola.height)) {
+				if ((dx <= Bola.WIDTH) && (dy <= bola.height)) {
 					return true;
 					trace('bola sebelah return true');
 				}
@@ -214,7 +272,7 @@ package screen {
 			e.stopPropagation();
 			bola = e.currentTarget as Bola;
 			
-			if (bolaCurrent == null) {
+			if ((bolaCurrent == null) && (stCanDrag)) {
 				trace('bola mouse down: ' + bola.x + '/' + bola.y);
 				bolaLinkAdd(bola);
 			}
@@ -245,18 +303,23 @@ package screen {
 			var warna:int = 0;
 			var bola:Bola;
 			
-			for (i = 0; i < boardWidth; i++) {
-				boards[i] = new Array(boardHeight);
-				for (j = 0; j < boardHeight; j++) {
+			for (i = 0; i < BOARD_WIDTH; i++) {
+				boards[i] = new Array(BOARD_HEIGHT);
+				for (j = 0; j < BOARD_HEIGHT; j++) {
 					bola = bolaCreate();
-					bola.x = i * Bola.width;
-					bola.y = j * Bola.height - 160;
+					bola.x = i * Bola.WIDTH;
+					bola.y = j * Bola.HEIGHT - BOLA_OFFSET;
 					bola.addEventListener(MouseEvent.MOUSE_DOWN, bolaMouseDown, false, 0, true);
 					bola.addEventListener(MouseEvent.MOUSE_OVER, bolaMouseOver, false, 0, true);
 					boards[i][j] = bola;
+					bolas.push(bola);
 					addChild(bola);
 				}
 			}
+		}
+		
+		private function update(e:Event):void {
+			
 		}
 		
 		private function updateBolaVisibility():void {
@@ -264,11 +327,11 @@ package screen {
 			var j:int;
 			var bola:Bola;
 			
-			for (i = 0; i < boardWidth; i++) {
-				for (j = 0; j < boardHeight; j++) {
+			for (i = 0; i < BOARD_WIDTH; i++) {
+				for (j = 0; j < BOARD_HEIGHT; j++) {
 					bola = boards[i][j];
 					if (bola) {
-						if (j >= 10) {
+						if (j >= BOLA_IDX_MIN_TO_VISIBLE) {
 							bola.visible = true;
 						} else {
 							bola.visible = false;
